@@ -120,40 +120,32 @@ PROGMEM const char usbHidReportDescriptor[USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH] 
 	//Length: 194
 };
 
-typedef struct
+struct __attribute__((__packed__)) gc_report
 {
 	int8_t report_id;
-    int8_t left_x;
-    int8_t left_y;
-    int8_t right_x;
-    int8_t right_y;
-	uint16_t buttons;
+    struct gc_controller_state state;
+};
 
-} __attribute__((__packed__)) gc_report_t;
-
-typedef struct
+struct __attribute__((__packed__)) n64_report
 {
 	int8_t report_id;
-    int8_t left_x;
-    int8_t left_y;
-	uint16_t buttons;
+    struct n64_controller_state state;
+};
 
-} __attribute__((__packed__)) n64_report_t;
-
-static uint8_t controllerType;
-static gc_report_t gc_report;
-static n64_report_t n64_report;
-static uchar idleRate;
+static uint8_t controller_type;
+static struct gc_report gc_report;
+static struct n64_report n64_report;
+static uchar idle_rate;
 
 usbMsgLen_t usbFunctionSetup(uchar data[8])
 {
-	usbRequest_t    *rq = (void *)data;
+	usbRequest_t *rq = (void *)data;
 
     if((rq->bmRequestType & USBRQ_TYPE_MASK) == USBRQ_TYPE_CLASS)
 	{
 		if(rq->bRequest == USBRQ_HID_GET_REPORT)
 		{
-			if(controllerType == GC_CONTROLLER)
+			if(controller_type == GC_CONTROLLER)
 			{
 				usbMsgPtr = (void *)&gc_report;
 				return sizeof(gc_report);
@@ -164,24 +156,26 @@ usbMsgLen_t usbFunctionSetup(uchar data[8])
         }
 		else if(rq->bRequest == USBRQ_HID_GET_IDLE)
 		{
-			usbMsgPtr = &idleRate;
+			usbMsgPtr = &idle_rate;
 			return 1;
         }
 		else if(rq->bRequest == USBRQ_HID_SET_IDLE)
-            idleRate = rq->wValue.bytes[1];
+            idle_rate = rq->wValue.bytes[1];
     }
 
     return 0;
 }
 
-void uart_send_byte(uint8_t byte)
+#ifdef UART_DEBUG
+
+static void uart_send_byte(uint8_t byte)
 {
-	while (!(UCSR0A & (uint8_t)(1<<UDRE0)));                          
-    UDR0 = byte;     
+	while (!(UCSR0A & (uint8_t)(1<<UDRE0)));
+    UDR0 = byte;
 }
 
-void uart_init()
-{ 
+static void uart_init()
+{
 	UCSR0C = (1<<UCSZ01)|(1<<UCSZ00);
 
 	UBRR0L = 103;
@@ -192,22 +186,23 @@ void uart_init()
 	UCSR0B = (1<<TXEN0);
 }
 
-void usbSendReport(const void *report, int length)
+#endif
+
+static void usbSendReport(const void *report, int length)
 {
 	while (!usbInterruptIsReady())
 		usbPoll();
-	
+
 	usbSetInterrupt((uchar *)report, length);
 }
 
 int main()
 {
-	uint8_t buffer[128];
+	uint8_t buffer[MAX_RESPONSE_SIZE];
 	uint8_t type_request[1] = { NTD_QUERY_CONTROLLER_TYPE };
 	uint8_t n64_bt_request[1] = { N64_QUERY_BUTTONS };
 	uint8_t gc_bt_request[3] = { GC_QUERY_BUTTONS_0, GC_QUERY_BUTTONS_1, GC_QUERY_BUTTONS_2 };
 	int length;
-	int8_t dummy;
 
 	wdt_disable();
 
@@ -229,36 +224,34 @@ int main()
 
     sei();
 
-
     for(;;)
 	{
-
 		#ifndef UART_DEBUG
-		
+
 		n64_report.report_id = 1;
 		gc_report.report_id = 3;
 
 		for(int i=PC0; i<=PC3; i++)
 		{
 			length = ntd_request(type_request, 1, buffer, 1<<i);
-			controllerType = ntd_controller_type(buffer, length);
-		
-			if(controllerType == N64_CONTROLLER)
+			controller_type = ntd_controller_type(buffer, length);
+
+			if(controller_type == N64_CONTROLLER)
 			{
 				_delay_ms(1);
 				length = ntd_request(n64_bt_request, 1, buffer, 1<<i);
-				
-				if(n64_parse_response(buffer, length, &n64_report.buttons, &n64_report.left_x, &n64_report.left_y))
-					usbSendReport((void *)&n64_report, sizeof(n64_report_t));
+
+				if(n64_parse_response(buffer, length, &n64_report.state))
+					usbSendReport((void *)&n64_report, sizeof(n64_report));
 
 				n64_report.report_id++;
 			}
-			else if(controllerType == GC_CONTROLLER)
+			else if(controller_type == GC_CONTROLLER)
 			{
 				length = ntd_request(gc_bt_request, 3, buffer, 1<<i);
-				
-				if(gc_parse_response(buffer, length, &gc_report.buttons, &gc_report.left_x, &gc_report.left_y, &dummy, &gc_report.right_x, &gc_report.right_y, &dummy))
-					usbSendReport((void *)&gc_report, sizeof(gc_report_t));
+
+				if(gc_parse_response(buffer, length, &gc_report.state))
+					usbSendReport((void *)&gc_report, sizeof(gc_report));
 
 				gc_report.report_id++;
 			}
@@ -271,19 +264,19 @@ int main()
 		for(int i=0; i<length; i++)
 			uart_send_byte(buffer[i]);
 
-		gc_parse_response(buffer, length, &gc_report.buttons, &gc_report.left_x, &gc_report.left_y, &dummy, &gc_report.right_x, &gc_report.right_y, &dummy);
+		gc_parse_response(buffer, length, &gc_report.state);
 
-		uart_send_byte(gc_report.buttons);
-		uart_send_byte(gc_report.buttons>>8);
-		uart_send_byte(gc_report.left_x);
-		uart_send_byte(gc_report.left_y);
-		uart_send_byte(gc_report.right_x);
-		uart_send_byte(gc_report.right_y);
+		uart_send_byte(gc_report.state.buttons);
+		uart_send_byte(gc_report.state.buttons>>8);
+		uart_send_byte(gc_report.state.left_x);
+		uart_send_byte(gc_report.state.left_y);
+		uart_send_byte(gc_report.state.right_x);
+		uart_send_byte(gc_report.state.right_y);
 
 		uart_send_byte(length);
-		//uart_send_byte(test);
 		uart_send_byte(0xff);
 
 		#endif
     }
 }
+

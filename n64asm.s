@@ -1,12 +1,17 @@
 #include <avr/io.h>
 
 ; Call-used registers (r18-r27, r30-r31):
-; May be allocated by gcc for local data. You may use them freely in assembler subroutines. Calling C subroutines can clobber any of them - the caller is responsible for saving and restoring.
+; May be allocated by gcc for local data. You may use them freely in assembler
+; subroutines. Calling C subroutines can clobber any of them - the caller is
+; responsible for saving and restoring.
 
 ; Call-saved registers (r2-r17, r28-r29):
-; May be allocated by gcc for local data. Calling C subroutines leaves them unchanged. Assembler subroutines are responsible for saving and restoring these registers, if changed. r29:r28 (Y pointer) is used as a frame pointer (points to local data on stack) if necessary.
-; The requirement for the callee to save/preserve the contents of these registers even applies in situations where the compiler assigns them for argument passing.
-
+; May be allocated by gcc for local data. Calling C subroutines leaves them
+; unchanged. Assembler subroutines are responsible for saving and restoring these
+; registers, if changed. r29:r28 (Y pointer) is used as a frame pointer (points
+; to local data on stack) if necessary.  The requirement for the callee to
+; save/preserve the contents of these registers even applies in situations where
+; the compiler assigns them for argument passing.
 
 ZERO = 1 ;register r1 contains always 0
 
@@ -28,7 +33,13 @@ TIMER0_OVF_vect:
 	reti
 
 
-; uint8_t<r24> ntd_request(uint8_t *request<r25:r24>, uint8_t request_length<r22>, uint8_t response[128]<r21:r20>, uint8_t portc_mask<r18>);
+; uint8_t<r24> ntd_request(
+;    uint8_t *request<r25:r24>,
+;    uint8_t request_length<r22>,
+;    uint8_t response[128]<r21:r20>,
+;    uint8_t portc_mask<r18>
+; )
+;
 ; register usage:
 ; r25
 ; r24
@@ -36,7 +47,6 @@ TIMER0_OVF_vect:
 ; r21
 ; r20
 ; r18
-
 .global ntd_request
 ntd_request:
 
@@ -71,7 +81,11 @@ ntd_request:
 	ret
 
 
-; uint8_t<r24> ntd_receive(uint8_t response[128]<r25:r24>, uint8_t portc_mask<r22>);
+; uint8_t<r24> ntd_receive(
+;   uint8_t response[128]<r25:r24>,
+;   uint8_t portc_mask<r22>
+; )
+;
 ; register usage:
 ; r25
 ; r24
@@ -104,7 +118,7 @@ ntd_receive:
 	out _SFR_IO_ADDR(TCCR0B), r18
 
   ;wait for falling edge
-  wait_ntd_low:	
+  wait_ntd_low:
 	in r18, _SFR_IO_ADDR(PINC)
 	and r18, r22
 	breq ntd_low
@@ -116,7 +130,7 @@ ntd_receive:
 	;stop timer, disable interrupt
 	out _SFR_IO_ADDR(TCCR0B), ZERO
 	sts _SFR_MEM_ADDR(TIMSK0), ZERO
-	
+
 	;calculate length
     ;<XH, XL> = <XH, XL> - <r25, r24>
     sub XL, r24
@@ -127,7 +141,6 @@ ntd_receive:
 	mov r25, XH
 
 	ret
-
 
   ;falling edge occurred
   ntd_low:
@@ -149,11 +162,15 @@ ntd_receive:
 
 	rjmp wait_ntd_low
 
-	
 
-
-; void ntd_send(uint8_t *request<r25:r24>, uint8_t request_length<r22>, uint8_t portc_mask<r20>);
+; void ntd_send(
+;   uint8_t *request<r25:r24>,
+;   uint8_t request_length<r22>,
+;   uint8_t portc_mask<r20>
+; );
+;
 ; send buffer at r25:r24 with length r22 to controller
+;
 ; register usage:
 ; r25
 ; r24
@@ -192,8 +209,14 @@ ntd_send:
 
 	ret
 
-; void ntd_send_byte(uint8_t byte<r24>, uint8_t portc_mask<r20>);
+
+; void ntd_send_byte(
+;   uint8_t byte<r24>,
+;   uint8_t portc_mask<r20>
+; );
+;
 ; send r24 to controller
+;
 ; register usage:
 ; r24
 ; r20
@@ -243,7 +266,7 @@ ntd_send_byte:
 
 		;high
 		out _SFR_IO_ADDR(DDRC), r20
-	
+
 	  send_continue_loop:
 	lsr r18
 	brcs send_done
@@ -256,3 +279,4 @@ ntd_send_byte:
   send_done:
 
 	ret
+
