@@ -1,2 +1,6 @@
 *.o
 *.hid
+*.elf
+*.hex
+*.lss
+*.map
