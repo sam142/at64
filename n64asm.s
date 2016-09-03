@@ -28,9 +28,9 @@ ZERO = 1 ;register r1 contains always 0
 .global TIMER0_OVF_vect
 TIMER0_OVF_vect:
 
-	;data receive timed out
-	ldi r20, 1
-	reti
+    ;data receive timed out
+    ldi r20, 1
+    reti
 
 
 ; uint8_t<r24> ntd_request(
@@ -50,35 +50,35 @@ TIMER0_OVF_vect:
 .global ntd_request
 ntd_request:
 
-	;disable interrupts
-	cli
+    ;disable interrupts
+    cli
 
-	;r16: portc_mask
-	push r16
-	mov r16, r18
+    ;r16: portc_mask
+    push r16
+    mov r16, r18
 
-	;portc = 0
-	out _SFR_IO_ADDR(PORTC), ZERO
+    ;portc = 0
+    out _SFR_IO_ADDR(PORTC), ZERO
 
-	push r20
-	push r21
+    push r20
+    push r21
 
-	;r20: portc_mask
-	mov r20, r16
-	call ntd_send
+    ;r20: portc_mask
+    mov r20, r16
+    call ntd_send
 
-	;enable interrupts
-	sei
+    ;enable interrupts
+    sei
 
-	pop r25
-	pop r24
+    pop r25
+    pop r24
 
-	;r20: portc_mask
-	mov r22, r16
-	call ntd_receive
+    ;r20: portc_mask
+    mov r22, r16
+    call ntd_receive
 
-	pop r16
-	ret
+    pop r16
+    ret
 
 
 ; uint8_t<r24> ntd_receive(
@@ -92,75 +92,75 @@ ntd_request:
 ; X
 ntd_receive:
 
-	;X = response
-	mov XL, r24
-	mov XH, r25
+    ;X = response
+    mov XL, r24
+    mov XH, r25
 
-	com r22
+    com r22
 
-	;use portc as an input
-	in r18, _SFR_IO_ADDR(DDRC)
-	and r18, r22
-	out _SFR_IO_ADDR(DDRC), r18
+    ;use portc as an input
+    in r18, _SFR_IO_ADDR(DDRC)
+    and r18, r22
+    out _SFR_IO_ADDR(DDRC), r18
 
-	com r22
+    com r22
 
-	;clear timer0
-	out _SFR_IO_ADDR(TCNT0), ZERO
-	clr r20
+    ;clear timer0
+    out _SFR_IO_ADDR(TCNT0), ZERO
+    clr r20
 
-	;enable timer0 overflow interrupt
-	ldi r18, (1<<TOIE0)
-	sts _SFR_MEM_ADDR(TIMSK0), r18
+    ;enable timer0 overflow interrupt
+    ldi r18, (1<<TOIE0)
+    sts _SFR_MEM_ADDR(TIMSK0), r18
 
-	;start timer0 (no prescaling)
-	ldi r18, (1<<CS00)
-	out _SFR_IO_ADDR(TCCR0B), r18
+    ;start timer0 (no prescaling)
+    ldi r18, (1<<CS00)
+    out _SFR_IO_ADDR(TCCR0B), r18
 
   ;wait for falling edge
   wait_ntd_low:
-	in r18, _SFR_IO_ADDR(PINC)
-	and r18, r22
-	breq ntd_low
-	cpi r20, 1
-	brne wait_ntd_low
+    in r18, _SFR_IO_ADDR(PINC)
+    and r18, r22
+    breq ntd_low
+    cpi r20, 1
+    brne wait_ntd_low
 
   ;timeout: receive completed
   timeout:
-	;stop timer, disable interrupt
-	out _SFR_IO_ADDR(TCCR0B), ZERO
-	sts _SFR_MEM_ADDR(TIMSK0), ZERO
+    ;stop timer, disable interrupt
+    out _SFR_IO_ADDR(TCCR0B), ZERO
+    sts _SFR_MEM_ADDR(TIMSK0), ZERO
 
-	;calculate length
+    ;calculate length
     ;<XH, XL> = <XH, XL> - <r25, r24>
     sub XL, r24
     sbc XH, r25
 
-	;<r25, r24> = <XH, XL>
-	mov r24, XL
-	mov r25, XH
+    ;<r25, r24> = <XH, XL>
+    mov r24, XL
+    mov r25, XH
 
-	ret
+    ret
 
   ;falling edge occurred
   ntd_low:
     ;reset timer
-	out _SFR_IO_ADDR(TCNT0), ZERO
+    out _SFR_IO_ADDR(TCNT0), ZERO
 
   ;wait for rising edge
   wait_ntd_high:
-	cpi r20, 1
-	breq timeout
-	in r18, _SFR_IO_ADDR(PINC)
-	and r18, r22
-	breq wait_ntd_high
+    cpi r20, 1
+    breq timeout
+    in r18, _SFR_IO_ADDR(PINC)
+    and r18, r22
+    breq wait_ntd_high
 
-	;rising edge occurred
-	;store timer
-	in r18, _SFR_IO_ADDR(TCNT0)
-	st X+, r18
+    ;rising edge occurred
+    ;store timer
+    in r18, _SFR_IO_ADDR(TCNT0)
+    st X+, r18
 
-	rjmp wait_ntd_low
+    rjmp wait_ntd_low
 
 
 ; void ntd_send(
@@ -179,35 +179,35 @@ ntd_receive:
 
 ntd_send:
 
-	mov ZL, r24
-	mov ZH, r25
-	mov r23, r20
+    mov ZL, r24
+    mov ZH, r25
+    mov r23, r20
 
   send_byte_loop:
 
-	;r20; portc_mask
-	mov r20, r23
-	;r24: byte
-	ld r24, Z+
-	call ntd_send_byte
+    ;r20; portc_mask
+    mov r20, r23
+    ;r24: byte
+    ld r24, Z+
+    call ntd_send_byte
 
-	dec r22
+    dec r22
 
-	brne send_byte_loop
+    brne send_byte_loop
 
-	;send stop bit
-	;low
-	NOPS 7
+    ;send stop bit
+    ;low
+    NOPS 7
 
-	out _SFR_IO_ADDR(DDRC), r21
+    out _SFR_IO_ADDR(DDRC), r21
 
-	;low for 1us
-	NOPS 16
+    ;low for 1us
+    NOPS 16
 
-	;high
-	out _SFR_IO_ADDR(DDRC), r20
+    ;high
+    out _SFR_IO_ADDR(DDRC), r20
 
-	ret
+    ret
 
 
 ; void ntd_send_byte(
@@ -225,58 +225,58 @@ ntd_send:
 
 ntd_send_byte:
 
-	;r21 DDRC high -> ntd low
-	in r21, _SFR_IO_ADDR(DDRC)
-	or r21, r20
+    ;r21 DDRC high -> ntd low
+    in r21, _SFR_IO_ADDR(DDRC)
+    or r21, r20
 
-	;r20 DDRC low -> ntd high
-	com r20
-	in r18, _SFR_IO_ADDR(DDRC)
-	and r20, r18
+    ;r20 DDRC low -> ntd high
+    com r20
+    in r18, _SFR_IO_ADDR(DDRC)
+    and r20, r18
 
-	ldi r18, (1<<7)
+    ldi r18, (1<<7)
 
   send_loop:
 
-	;low
-	out _SFR_IO_ADDR(DDRC), r21
+    ;low
+    out _SFR_IO_ADDR(DDRC), r21
 
-	mov r19, r24
-  	and r19, r18
+    mov r19, r24
+      and r19, r18
 
-	breq send_zero
+    breq send_zero
 
-	  send_one:
+      send_one:
 
-	  	;low for 1us
-		NOPS 13
+          ;low for 1us
+        NOPS 13
 
-		;high
-		out _SFR_IO_ADDR(DDRC), r20
+        ;high
+        out _SFR_IO_ADDR(DDRC), r20
 
-		;high for 3us
-		NOPS 30
+        ;high for 3us
+        NOPS 30
 
-		rjmp send_continue_loop
+        rjmp send_continue_loop
 
-	  send_zero:
+      send_zero:
 
-	    ;low for 3us
-		NOPS 44
+        ;low for 3us
+        NOPS 44
 
-		;high
-		out _SFR_IO_ADDR(DDRC), r20
+        ;high
+        out _SFR_IO_ADDR(DDRC), r20
 
-	  send_continue_loop:
-	lsr r18
-	brcs send_done
+      send_continue_loop:
+    lsr r18
+    brcs send_done
 
-	;high for 1us
-	NOPS 11
+    ;high for 1us
+    NOPS 11
 
-	jmp send_loop
+    jmp send_loop
 
   send_done:
 
-	ret
+    ret
 

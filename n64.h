@@ -25,14 +25,14 @@ struct __attribute__((__packed__)) gc_controller_state
     int8_t left_y;
     int8_t right_x;
     int8_t right_y;
-	uint16_t buttons;
+    uint16_t buttons;
 };
 
 struct __attribute__((__packed__)) n64_controller_state
 {
     int8_t left_x;
     int8_t left_y;
-	uint16_t buttons;
+    uint16_t buttons;
 };
 
 uint8_t ntd_request(uint8_t *request, uint8_t request_length, uint8_t response[MAX_RESPONSE_SIZE], uint8_t portc_mask);
